@@ -1,0 +1,110 @@
+---
+title: "Peer-graded Assignment: Prediction Assignment Writeup"
+author: "Loutfi Kuret"
+output:
+  html_document: default
+  pdf_document: default
+  word_document: default
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# 1) Setting libraries
+
+```{r, results='hide'}
+library(knitr)
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(rattle)
+library(randomForest)
+library(corrplot)
+set.seed(1337)
+```
+
+
+# 2) Setting and cleaning Input Data 
+
+```{r}
+# Download and define the Input datasets 
+UrlTraining <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+UrlTesting  <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+training <- read.csv(url(UrlTraining))
+testing  <- read.csv(url(UrlTesting))
+
+inTraining  <- createDataPartition(training$classe, p=0.7, list=FALSE)
+TrainingSet <- training[inTraining, ]
+TestingSet  <- training[-inTraining, ]
+
+# remove variables with Nearly Zero Variance
+temp <- nearZeroVar(TrainingSet)
+TrainingSet <- TrainingSet[, -temp]
+TestingSet  <- TestingSet[, -temp]
+
+# remove variables that are mostly NA
+temp2    <- sapply(TrainingSet, function(x) mean(is.na(x))) > 0.95
+TrainingSet <- TrainingSet[, temp2==FALSE]
+TestingSet  <- TestingSet[, temp2==FALSE]
+
+# remove identification variables (columns 1 to 5)
+TrainingSet <- TrainingSet[, -(1:5)]
+TestingSet  <- TestingSet[, -(1:5)]
+```
+
+# 3) Prediction Models
+
+We will compare the accuracy of the Random Forest and Decision Tree.
+The model with the best accuracy will be used as prediction on the testing dataset.
+
+# 3.1) Random Forest
+
+```{r}
+# Fitting
+control <- trainControl(method="cv", number=3, verboseIter=FALSE)
+RFfit <- train(classe ~ ., data=TrainingSet, method="rf", trControl=control)
+RFfit$finalModel0
+
+# prediction on Test dataset
+RF <- predict(RFfit, newdata=TestingSet)
+RFmatrix <- confusionMatrix(RF, TestingSet$classe)
+RFmatrix
+
+# Confusion matrix and accuracy
+plot(RFmatrix$table, col = RFmatrix$byClass, main = paste("Random Forest - Accuracy =", round(RFmatrix$overall['Accuracy'], 4)))
+```
+
+
+# 3.2) Prediction Model Building Method: Decision Trees
+
+```{r}
+# fitting
+Treefit <- rpart(classe ~ ., data=TrainingSet, method="class")
+
+# prediction on Test dataset
+Tree <- predict(Treefit, newdata=TestingSet, type="class")
+Treematrix <- confusionMatrix(Tree, TestingSet$classe)
+Treematrix
+
+# onfusion matrix and accuracy
+plot(Treematrix$table, col = Treematrix$byClass, 
+     main = paste("Decision Tree - Accuracy =", round(Treematrix$overall['Accuracy'], 4)))
+```
+
+
+# 4) Test Data Prediction data
+
+The Random Forest model accuracy (0.9973) is higher than the Decision Trees model accuracy (0.7359).
+
+For that reason we will choose the Random Forest model to apply on the testing data.
+
+Below are the results of the predictions
+
+```{r}
+final <- predict(RFfit, newdata=testing)
+final
+```
+
+
